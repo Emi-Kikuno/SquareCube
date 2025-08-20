@@ -1,0 +1,2428 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <title>
+   Square³
+  </title>
+  <style>
+ :root {
+  /* Theme */
+  --bg: #0e0f12;
+  --grid: #151821;
+  --text: #e7eaf0;
+  --hud: #9aa3b2;
+
+  /* HUD spacing (static layout keeps these at zero) */
+  --hud-h: 0px;
+  --hud-pad: 0px;
+}
+
+/* Base */
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.3 system-ui, Segoe UI, Roboto, Inter, Arial;
+}
+
+a { color: #9ecbff; text-decoration: none; }
+.tiny { font-size: 12px; color: #97a1b4; }
+
+/* Layout shells */
+.page {
+  transform: scale(.85);
+  transform-origin: top center;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;               /* deterministic vertical spacing */
+  padding: 0 16px 0;    /* bottom gap killed; HUD is static */
+  max-width: 980px;
+  margin: 24px auto;
+}
+
+/* Canvas */
+canvas {
+  background: var(--grid);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.4);
+  image-rendering: pixelated;
+  touch-action: none;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  /* Ensure the board never grows under any bottom UI */
+  max-height: calc(100dvh - 24px);
+}
+
+/* Sidebar HUD hidden on this layout */
+.hud { min-width: 260px; display: none; }
+
+/* Cards / text */
+.card {
+  background: #12151e;
+  border: 1px solid #232838;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.title {
+  margin: 0 0 6px;
+  font-weight: 350;
+  letter-spacing: .2px;
+}
+
+.score { font-size: 28px; font-weight: 800; margin: 6px 0; }
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  color: var(--hud);
+}
+
+/* Buttons */
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+button {
+  background: #1a2030;
+  color: #d8deea;
+  border: 1px solid #2a3248;
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+button:hover { background: #202741; }
+
+/* Key legends */
+.legend kbd {
+  background: #1a2030;
+  border: 1px solid #2a3046;
+  border-bottom-width: 3px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  margin: 0 4px 4px 0;
+  display: inline-block;
+}
+
+/* Overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.55);
+  z-index: 10;
+}
+
+.overlay .panel {
+  background: #12151e;
+  border: 1px solid #2a3248;
+  border-radius: 14px;
+  padding: 18px 22px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+
+.overlay .panel h2 { margin: 0 0 8px; }
+.overlay .panel .big { font-size: 28px; font-weight: 800; margin: 6px 0 12px; }
+
+/* Top game bar */
+.gamebar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;                 /* keep single row */
+  align-items: center;               /* vertical centering */
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 6px 0;                /* exact spacing under bar */
+  padding: 0;
+}
+
+.gamebar > .brand {
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;                      /* tight internal spacing */
+  min-width: 0;
+}
+
+.gamebar .title,
+.gamebar .score,
+.gamebar .stats { margin: 0; padding: 0; }
+
+.gamebar .title { line-height: 1.1; }
+
+.gamebar .stats.mono {
+  display: grid;
+  grid-auto-flow: column;
+  column-gap: 12px;
+  row-gap: 0;
+  white-space: nowrap;
+}
+
+/* Preview card */
+.preview-card {
+  background: #12151e;
+  border: 1px solid #232838;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.preview-card .tiny { margin-top: 6px; }
+
+/* Touch controls (static bar in this layout) */
+.touch-hud {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+  z-index: 1;
+}
+
+.touch-hud button {
+  min-width: 45px;
+  min-height: 45px;
+  border-radius: 10px;
+  background: #1a2030;
+  color: #d8deea;
+  border: 1px solid #2a3248;
+  font-size: 16px;
+}
+
+/* Dedicated control row (Pause/Restart/Haptics) */
+.controls-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.controls-row button {
+  background: #1a2030;
+  color: #d8deea;
+  border: 1px solid #2a3248;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.controls-row button:hover { background: #202741; }
+
+/* On-screen d-pad coloring */
+#btnLeft  { background: #4662a1; color: #fff; border-color: #b71c1c; }
+#btnRight { background: #4662a1; color: #fff; border-color: #0d47a1; }
+#btnRotate{ background: #5d90e0; color: #fff; border-color: #e65100; }
+#btnSoft  { background: #3f93b0; color: #fff; border-color: #1b5e20; }
+
+#btnLeft:hover   { background: #364f87; }
+#btnRight:hover  { background: #364f87; }
+#btnRotate:hover { background: #5283d1; }
+#btnSoft:hover   { background: #377c94; }
+
+/* Leaderboard list niceties */
+#overlayLeaderboard li { display: flex; gap: 8px; align-items: baseline; }
+#overlayLeaderboard .tiny { opacity: .75; }
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .wrap { align-items: center; }
+  .touch-hud { display: flex; }
+}
+
+@media (max-width: 480px) {
+  #game { width: 92vw; height: auto; }
+  .touch-hud button {
+    min-width: 64px;
+    min-height: 64px;
+    font-size: 18px;
+  }
+}
+
+
+</style>
+ </head>
+ <body>
+<div class="page">
+<div class="wrap">
+ <div class="gamebar">
+  <div class="brand">
+    <h3 class="title">Square³</h3>
+    <div class="score"><span id="score">0</span></div>
+  </div>
+
+<div class="stats mono">
+  <span>Combo: <span id="combo">0</span></span>
+  <span>Level: <span id="level">1</span></span>
+</div>
+
+<div class="preview-card">
+  <canvas id="preview" width="72" height="72"></canvas>
+  <div class="tiny label">Next</div>
+</div>
+
+
+
+
+</div>
+
+  
+<canvas id="game"></canvas>
+</div>
+
+  <!-- Board -->
+ <!-- Board -->
+
+
+  <!-- Mobile touch fallback buttons -->
+  <div aria-label="Mobile controls" class="touch-hud">
+   <button aria-label="Move left" id="btnLeft">
+    ⟵
+   </button>
+   <button aria-label="Rotate" id="btnRotate">
+    ⟳
+   </button>
+   <button aria-label="Move right" id="btnRight">
+    ⟶
+   </button>
+   <button aria-label="Soft drop" id="btnSoft">
+    ▼
+   </button>
+  </div>
+
+  <div class="controls-row">
+    <button id="pause">Pause</button>
+    <button id="restart">Restart</button>
+    <button id="haptics">Haptics: On</button>
+  </div>
+
+</div>
+
+
+  <!-- Sidebar HUD (desktop only) -->
+  <aside class="hud">
+    <div class="card">
+      <div class="btns"></div>
+    </div>
+
+  
+  </aside>
+
+
+  <!-- Game Over overlay -->
+  <div aria-live="assertive" aria-modal="true" class="overlay" id="overlay" role="dialog">
+   <div class="panel">
+    <h2>
+     Game Over
+    </h2>
+    <div class="big">
+     Score:
+     <span id="finalScore">
+      0
+     </span>
+    </div>
+	<div class="card" id="leaderboardCard" style="margin-top:12px">
+  <h3 class="title">Leaderboard</h3>
+  <ol id="overlayLeaderboard" class="mono" style="padding-left:20px; margin:8px 0;">
+    <li class="tiny">No scores yet</li>
+  </ol>
+</div>
+<div class="row" style="margin-top:12px; display:flex; gap:8px;">
+  <button id="saveScore"style="background-color:#3f93b0">Save score</button>
+  <button id="skipSave" style="background-color:#f26161">Don't save</button>
+</div>
+<!-- New clear button -->
+<div class="row" style="margin-top:12px; display:flex; gap:8px;">
+  <button id="clearBoard" style="background-color:#f26161">Clear leaderboard</button>
+</div>
+<div class="row" style="margin-top:12px; display:flex; gap:8px;">
+    <button id="again" style="background-color:#4662a1">
+     Play Again
+    </button>
+	</div>
+
+   </div>
+  </div>
+<script>
+
+// Default board size based on query string
+const params = new URLSearchParams(window.location.search);
+let boardSetting = params.get('board') || "8x16";
+
+let W = 10, H = 20;
+if (boardSetting === "8x16") {
+  W = 8;
+  H = 16;
+} else if (boardSetting === "12x24") {
+  W = 12;
+  H = 24;
+}
+
+// Target display size based on classic 8x16 @ 30px = 240x480
+const targetWidthPx = 8 * 30;
+const targetHeightPx = 16 * 30;
+
+// Cell size is scaled so board width/height fits target area
+const CELL = Math.floor(Math.min(targetWidthPx / W, targetHeightPx / H));
+
+// Parse speed from query (?speed=slow|normal|fast|insane)
+const speedSetting = params.get('speed') || 'normal';
+
+// Base drop delay (ms) per speed choice
+const SPEED_BASE_MS = {
+  slow:   700,
+  normal: 600,
+  fast:   500,
+  insane: 400
+};
+const startBaseMs = SPEED_BASE_MS[speedSetting] ?? 600;
+
+
+
+
+
+   /* =========================
+   Config
+   ========================= */
+const TICK_BASE = 900;
+const SPEEDUP_EVERY = 1;
+const SPEEDUP_FACTOR = 0.90;
+const NUMBER_WEIGHTS = {3:60, 9:25, 27:10, 81:5};
+const COMBO_STEP = 0.02;
+const MILESTONES = [2187, 6561, 19683];
+const SWEEP_MULT = {2187:2, 6561:2, 19683:2};
+
+const TILE_MULT = 2; // ×3
+const TILE_DIV  = 4; // ÷3
+function isMult(v) {
+  return Math.abs(v|0) === TILE_MULT;
+}
+// --- Spawn odds for specials ---
+const BASE_MULT_PROB   = 0.02;   
+const MULT_SCALE_PER_L = 0.001;   
+const MULT_MAX_PROB    = 0.035; 
+  
+const BASE_DIV_PROB    = 0.015;   
+const DIV_SCALE_PER_L  = 0.001;  
+const DIV_MAX_PROB     = 0.035;   
+
+function isDiv(v) {
+  return Math.abs(v|0) === TILE_DIV;
+}
+
+function isSpecial(v) {
+  const x = Math.abs(v|0);
+  return x === TILE_MULT || x === TILE_DIV;
+}
+function displayLabel(v){
+  const raw = Math.abs(v|0);
+  if (raw === TILE_MULT) return "×3";
+  if (raw === TILE_DIV)  return "÷3";
+  return String(raw);
+}
+
+
+function scoreNeeded(level) {
+  const base = 3000;
+  const growth = 1.5;
+  if (growth === 1) return base * level; // linear edge case
+  return Math.floor(base * (Math.pow(growth, level) - 1) / (growth - 1));
+}
+
+
+
+const BURST_BY_TILE = new Map([
+  [6561, 1],
+  [19683,1],
+]);
+
+
+/* =========================
+   State & UI
+   ========================= */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ // 🔧 make canvas match logical board size
+canvas.width  = W * CELL;
+canvas.height = H * CELL;
+const previewCanvas = document.getElementById("preview");
+const pctx = previewCanvas.getContext("2d");
+
+const ui = {
+  score: document.getElementById('score'),
+  combo: document.getElementById('combo'),
+  lines: document.getElementById('lines'),
+  level: document.getElementById('level'),
+  restart: document.getElementById('restart'),
+  pause: document.getElementById('pause'),
+  overlay: document.getElementById('overlay'),
+  finalScore: document.getElementById('finalScore'),
+  again: document.getElementById('again'),
+  saveScore: document.getElementById('saveScore'),
+  skipSave:  document.getElementById('skipSave'),
+    clearBoard: document.getElementById('clearBoard'),
+  overlayLeaderboard: document.getElementById('overlayLeaderboard'), // ← add this
+  hapticsBtn: document.getElementById('haptics'),
+  btnLeft:  document.getElementById('btnLeft'),
+  btnRight: document.getElementById('btnRight'),
+  btnRotate:document.getElementById('btnRotate'),
+  btnSoft:  document.getElementById('btnSoft'),
+};
+
+
+
+// UI (add a toggle button if you want)
+const uiGhost = null; // or add a real button later
+/* ===== Stable line requirement ===== */
+
+
+
+// State
+let showGhost = true;
+
+
+let hapticsOn = (localStorage.getItem('tetra_haptics') ?? 'on') === 'on';
+ui.hapticsBtn.textContent = 'Haptics: ' + (hapticsOn ? 'On' : 'Off');
+
+let jamFlash = []; // array of {row, untilMs}
+// --- Merge glow (like jamFlash, but for merges) ---
+
+// --- Merge glow (keeper + consumed) ---
+let mergeFlash = [];                                  // array of { r, c, untilMs, role }
+const MERGE_FLASH_MS = 280;                           // duration per pass
+
+
+function flashMergedCells(fusions) {
+  const until = performance.now() + MERGE_FLASH_MS;
+  for (const f of fusions) {
+    mergeFlash.push({ r: f.rk, c: f.ck, untilMs: until, role: 'keeper' });
+    if (Array.isArray(f.consumed)) {
+      for (const {r,c} of f.consumed)
+        mergeFlash.push({ r, c, untilMs: until, role: 'consumed' });
+    } else {
+      mergeFlash.push({ r: f.rc, c: f.cc, untilMs: until, role: 'consumed' });
+    }
+  }
+}
+
+
+
+const hudBar = document.querySelector('.touch-hud');
+
+function reserveHudSpace(){
+  const fudge = 24; // extra breathing room
+  const h = hudBar ? (hudBar.offsetHeight + fudge) : 0;
+  document.documentElement.style.setProperty('--hud-h', h + 'px');
+}
+
+
+// run once on load
+reserveHudSpace();
+
+// update on resize / rotate
+window.addEventListener('resize', reserveHudSpace);
+window.addEventListener('orientationchange', reserveHudSpace);
+
+const LOCK_DELAY_MS = 200;   // tweak: 150–300 ms is common
+let lockDeadline = null;     // null = not on ground yet
+const JAM_FLASH_MS = 450; // visual feedback duration for jammed rows
+
+
+let bag = [];
+function nextKind() {
+  if (bag.length === 0) bag = [...ORDER].sort(()=>Math.random()-0.5);
+  return bag.pop();
+}
+function buzz(ms=12){
+  if (!hapticsOn) return;
+  if (navigator.vibrate) { try { navigator.vibrate(ms); } catch(e){} }
+}
+// In your state object (add the new field):
+// Chosen speed baseline (ensure you defined startBaseMs + tickFor(level, baseMs) above)
+const state = {
+  board: Array.from({ length: H }, () => Array(W).fill(0)),
+  piece: null,
+  nextPiece: null,
+
+  score: 0,
+  combo: 0,
+  lines: 0,
+
+  level: 1,                                // always start at level 1
+  running: true,
+  linesInLevel: 0,
+
+  speedBaseMs: startBaseMs,                // ← store selected speed baseline
+  tickMs: tickFor(1, startBaseMs),         // ← initial drop delay from baseline
+
+  timer: null,
+
+  scoreAtLevelStart: 0,
+  seenMilestones: new Set(),
+  seenTiles: new Set(),
+
+  sweptFor: new Set(),
+  seenSweeps: new Set(),
+};
+
+ui.score.textContent = "0";
+ui.level.textContent = String(state.level);   // ← put it here
+
+
+function key(r,c){ return r + "," + c; }  // if not already defined here
+
+function collectSurfaceEmpties(forbid = new Set()) {
+  const spots = [];
+  for (let c = 0; c < W; c++) {
+    // scan upward from the bottom to find the first empty that is "supported"
+    for (let r = H - 1; r >= 0; r--) {
+      if (state.board[r][c] !== 0) continue;                 // not empty
+      const supported = (r === H - 1) || (state.board[r + 1][c] !== 0);
+      if (supported) {
+        const k = key(r,c);
+        if (!forbid.has(k)) spots.push([r, c]);
+        break; // only the top-of-stack empty for this column
+      }
+      // else: empty but floating (cell below also empty) → keep scanning up
+    }
+  }
+  return spots;
+}
+
+
+
+let tileToasts = [];
+const TILE_TOAST_MS = 2000;
+
+function pushTileToast(value) {
+  tileToasts.push({
+    value,
+    t0: performance.now(),
+    x: canvas.width / 2,
+    y: canvas.height * 0.3, // slightly above center
+  });
+}
+function pickThirdSpots(forbid = new Set(), need = 2) {
+  const picks = [];
+  const seen = new Set(forbid);
+  const K = (r,c) => r + "," + c;
+
+  function take(list) {
+    for (const [r,c] of list) {
+      const kk = K(r,c);
+      if (seen.has(kk)) continue;
+      picks.push([r,c]);
+      seen.add(kk);
+      if (picks.length === need) break;
+    }
+  }
+
+  // 1) surface-supported empties (shuffled)
+  const surf = collectSurfaceEmpties(seen).sort(() => Math.random() - 0.5);
+  take(surf);
+
+  // 2) any empty cells, bottom-first then shuffled per row
+  if (picks.length < need) {
+    const any = [];
+    for (let r = H - 1; r >= 0; r--) {
+      const row = [];
+      for (let c = 0; c < W; c++) {
+        if (state.board[r][c] === 0 && !seen.has(K(r,c))) row.push([r,c]);
+      }
+      // light shuffle per row to avoid strong column bias
+      for (let i = row.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [row[i], row[j]] = [row[j], row[i]];
+      }
+      any.push(...row);
+    }
+    take(any);
+  }
+
+  return picks;
+}
+
+// Small helper to bump level cleanly in one place
+
+function levelUp(steps = 1, cause = 'level') {
+  for (let i = 0; i < steps; i++) {
+    console.log(`[LEVEL UP] via ${cause} → L${state.level + 1}`);
+  }
+
+  for (let i = 0; i < steps; i++) {
+    const nextLevel = state.level + 1;
+
+    // toast first (so it renders even if timing changes)
+    pushLevelToast(nextLevel, cause);
+
+    state.level = nextLevel;
+
+    // ✅ use your new curve with the chosen baseline
+    state.tickMs = tickFor(state.level, state.speedBaseMs);
+
+    state.linesInLevel = 0;
+    state.scoreAtLevelStart = state.score;
+
+    buzz(12);
+    draw();          // render immediately
+    restartTimer();  // retime loop using updated tickMs
+  }
+}
+
+
+
+
+/**
+ * Push a tile toast anchored either to:
+ * - board cell (r,c), or
+ * - absolute pixel (x,y),
+ * falling back to canvas center if nothing provided.
+ */
+function pushTileToast(value, opts = {}) {
+  const { r = null, c = null, x = null, y = null } = opts;
+
+  // convert board cell -> pixel center
+  let px = x, py = y;
+  if (r != null && c != null) {
+    px = (c + 0.5) * CELL;
+    py = (r + 0.5) * CELL - CELL * 0.5; // start a bit above the tile
+  }
+
+  if (px == null) px = canvas.width  / 2;
+  if (py == null) py = canvas.height * 0.30;
+
+  tileToasts.push({
+    value,
+    t0: performance.now(),
+    x: px,
+    y: py
+  });
+}
+
+/* =========================
+   Helpers
+   ========================= */
+const inBounds = (r,c)=> r>=0 && r<H && c>=0 && c<W;
+const weighted = (table) => {
+  const entries = Object.entries(table).map(([k,v])=>[+k,+v]);
+  const total = entries.reduce((a, [,w])=>a+w, 0);
+  let r = Math.random()*total, acc=0;
+  for (const [val, w] of entries) { acc += w; if (r <= acc) return val; }
+  return entries[entries.length-1][0];
+};
+// ----- VALUE & LOCK HELPERS -----
+function cellVal(v){ return Math.abs(v|0); }     // numeric value (>=0)
+function isLocked(v){ return (v|0) < 0; }        // negative means "jammer"
+function lockOf(v){ return -Math.abs(v|0); }     // make locked
+function unlockOf(v){ return Math.abs(v|0); }    // make unlocked
+
+/* ===== Specials: internal codes and predicates ===== */
+
+
+function isPowerOfThree(x) {
+  if (x < 1) return false;
+  while (x % 3 === 0) x = x / 3;
+  return x === 1;
+}
+
+
+function isDiv(v)        { return Math.abs(v|0) === TILE_DIV; }
+function isNumberTile(v) { v = Math.abs(v|0); return v !== 0 && isPowerOfThree(v); }
+
+/** Return the text we should draw on the tile. */
+function displayLabel(v){
+  const raw = Math.abs(v|0);
+  if (raw === TILE_MULT) return "×3";
+  if (raw === TILE_DIV)  return "÷3";
+  return String(raw);
+}
+
+function isLockedNumberTile(v){ return isNumberTile(v) && isLocked(v); }
+
+/**
+ * If a triple's three source cells are ALL locked, trigger a bomb.
+ * Clears a 3×3 square centered at the triple keeper (rk,ck).
+ * Returns points awarded (sum of cleared abs values) or 0 if no bomb.
+ */
+ function pushBombToast(r, c){
+  pushTileToast("💥", { r, c });
+}
+function maybeTriggerLockedTripleBomb(board, triple){
+  // triple: { rk, ck, consumed:[{r,c},{r,c}], val }
+  const { rk, ck, consumed, val } = triple;
+  if (!Array.isArray(consumed) || consumed.length !== 2) return 0;
+
+  const cells = [[rk,ck], [consumed[0].r, consumed[0].c], [consumed[1].r, consumed[1].c]];
+
+  // all three must be number tiles of the same value
+  for (const [r,c] of cells){
+    const v = board[r][c];
+    if (!isNumberTile(v) || cellVal(v) !== val) return 0;
+  }
+
+  // bomb if at least one is locked
+  if (!cells.some(([r,c]) => isLocked(board[r][c]))) return 0;
+
+  // 3×3 clear centered on keeper
+  let pts = 0;
+  for (let rr = rk - 1; rr <= rk + 1; rr++){
+    for (let cc = ck - 1; cc <= ck + 1; cc++){
+      if (!inBounds(rr, cc)) continue;
+      pts += cellVal(board[rr][cc]);
+      board[rr][cc] = 0;
+      mergeFlash.push({ r: rr, c: cc, untilMs: performance.now() + MERGE_FLASH_MS, role: 'consumed' });
+    }
+  }
+
+  pushBombToast?.(rk, ck);
+  mergeFlash.push({ r: rk, c: ck, untilMs: performance.now() + MERGE_FLASH_MS, role: 'keeper' });
+  buzz(18);
+  return pts;
+}
+
+
+// Add this helper near your other helpers
+function rotateVals(piece, clockwise = true) {
+  const fromRot = piece.rot;
+  const toRot = (fromRot + (clockwise ? 1 : -1) + 4) % 4;
+
+  const from = SHAPES[piece.kind][fromRot];
+  const to   = SHAPES[piece.kind][toRot];
+
+  const rot = ([r, c]) => clockwise ? [-c, r] : [c, -r];
+  const rotated = from.map(rot);
+
+  // find a translation (dr,dc) so rotated+dr,dc == to
+  let dr = 0, dc = 0, found = false;
+  for (let a = 0; a < rotated.length && !found; a++) {
+    for (let b = 0; b < to.length && !found; b++) {
+      const tryDr = to[b][0] - rotated[a][0];
+      const tryDc = to[b][1] - rotated[a][1];
+      const ok = rotated.every(([rr, cc]) =>
+        to.some(([tr, tc]) => tr === rr + tryDr && tc === cc + tryDc)
+      );
+      if (ok) { dr = tryDr; dc = tryDc; found = true; }
+    }
+  }
+
+  // build permutation i -> j
+  const perm = new Array(from.length);
+  if (found) {
+    for (let i = 0; i < rotated.length; i++) {
+      const rr = rotated[i][0] + dr;
+      const cc = rotated[i][1] + dc;
+      const j = to.findIndex(([tr, tc]) => tr === rr && tc === cc);
+      perm[i] = (j === -1 ? i : j);
+    }
+  } else {
+    // fallback (shouldn’t trigger after Patch A)
+    for (let i = 0; i < from.length; i++) perm[i] = i;
+    console.warn(`rotateVals: no mapping for ${piece.kind} rot ${fromRot} → ${toRot}`);
+  }
+
+  // apply permutation
+  const out = new Array(piece.vals.length);
+  for (let i = 0; i < perm.length; i++) out[perm[i]] = piece.vals[i];
+  return out;
+}
+// Map a piece's vals from rot A -> rot B so each number follows its own square.
+function permuteValsForRotation(kind, fromRot, toRot, clockwise = true) {
+  const from = SHAPES[kind][fromRot];
+  const to   = SHAPES[kind][toRot];
+
+  const rot = ([r, c]) => clockwise ? [-c, r] : [c, -r];
+  const R = from.map(rot); // rotated coords (about origin)
+
+  // Find a translation (dr,dc) so R + (dr,dc) == to (as sets)
+  let dr = 0, dc = 0, aligned = false;
+  outer: for (let i = 0; i < R.length; i++) {
+    for (let j = 0; j < to.length; j++) {
+      const tryDr = to[j][0] - R[i][0];
+      const tryDc = to[j][1] - R[i][1];
+      // Check all points align with that translation
+      for (let k = 0; k < R.length; k++) {
+        const rr = R[k][0] + tryDr, cc = R[k][1] + tryDc;
+        if (!to.some(([tr, tc]) => tr === rr && tc === cc)) continue outer;
+      }
+      dr = tryDr; dc = tryDc; aligned = true; break outer;
+    }
+  }
+
+  const perm = new Array(from.length);
+  if (aligned) {
+    for (let i = 0; i < R.length; i++) {
+      const rr = R[i][0] + dr, cc = R[i][1] + dc;
+      const j = to.findIndex(([tr, tc]) => tr === rr && tc === cc);
+      perm[i] = (j === -1 ? i : j);
+    }
+  } else {
+    // Shouldn't happen with valid tables; fall back to identity
+    for (let i = 0; i < from.length; i++) perm[i] = i;
+    console.warn(`permuteValsForRotation: no alignment for ${kind} ${fromRot}→${toRot}`);
+  }
+  return perm;
+}
+
+function applyPermutation(arr, perm) {
+  const out = new Array(arr.length);
+  for (let i = 0; i < perm.length; i++) out[perm[i]] = arr[i];
+  return out;
+}
+// Return a copy of p dropped to its final landing row
+function projectToFloor(p) {
+  if (!p) return null;
+  let t = { ...p };
+  while (true) {
+    const n = { ...t, row: t.row + 1 };
+    if (canPlace(n)) t = n; else break;
+  }
+  return t;
+}
+/**
+ * Scan all rows and classify which are fully occupied and clearable,
+ * versus fully occupied but blocked by a locked (jammer) tile.
+ * Returns both lists as row indices.
+ */
+
+
+// Given the fusions of a pass, return the highest new tile produced (val*3)
+function highestTileFromFusions(fusions) {
+  let maxNew = 0;
+  for (const { val } of fusions) {
+    const made = val * 3;
+    if (made > maxNew) maxNew = made;
+  }
+  return maxNew;
+}
+
+/*mergecascade's Helpers*/
+function applyFusions(board, fusions) {
+  let points = 0;
+
+  for (const f of fusions) {
+    const { rk, ck, val } = f;
+    if (!isPowerOfThree(val)) continue;
+
+    // Triple path
+    if (Array.isArray(f.consumed) && f.consumed.length === 2) {
+      // 1) Bomb if all three sources are locked
+      const bombPts = maybeTriggerLockedTripleBomb(board, f);
+      if (bombPts > 0) {
+        points += bombPts;          // area-clear points only; no new tile placed
+        continue;                   // next fusion; gravity will run after this pass
+      }
+
+      // 2) Normal triple merge
+      board[rk][ck] = unlockOf(val * 3);   // ensure result is unlocked
+      for (const { r, c } of f.consumed) board[r][c] = 0;
+      points += (val * 3) * 2;             // your triple bonus
+      continue;
+    }
+
+    // Legacy pair fallback (if ever produced)
+    board[rk][ck] = unlockOf(val * 3);
+    board[f.rc][f.cc] = 0;
+    points += (val * 3);
+  }
+
+  return points; // caller adds combo and handles gravity/FX
+}
+
+
+
+/**
+ * Clears the specified rows in-place (sets cells to 0).
+ */
+
+function updateProgressAndSpeed() {
+  while (true) {
+    const needScoreAbs = scoreNeeded(state.level);
+    const haveScoreAbs = state.score;
+    if (haveScoreAbs >= needScoreAbs) { levelUp(1, 'score'); continue; }
+    break;
+  }
+}
+
+
+
+/*Rotatepiece's helpers*/
+/**
+ * Compute the target rotation index (0..3) from a starting rotation and direction.
+ */
+function nextRotationIndex(fromRot, clockwise = true) {
+  return (fromRot + (clockwise ? 1 : -1) + 4) % 4;
+}
+
+/**
+ * Returns a new vals array mapped into the target rotation using your existing
+ * permutation machinery (values follow their squares after rotation).
+ */
+function rotatedValsFor(kind, fromRot, toRot, vals, clockwise = true) {
+  const perm = permuteValsForRotation(kind, fromRot, toRot, clockwise);
+  return applyPermutation(vals, perm);
+}
+
+/**
+ * Try a set of horizontal kicks for the rotated piece.
+ * Returns a *placed* candidate piece if any kick fits, else null.
+ * (Keeps your current kick order and magnitude.)
+ */
+function tryHorizontalKicks(pieceCandidate, kicks = [0, -1, 1, -2, 2]) {
+  for (const dc of kicks) {
+    const tt = { ...pieceCandidate, col: pieceCandidate.col + dc };
+    if (canPlace(tt)) return tt;
+  }
+  return null;
+}
+
+/**
+ * A grounded piece is one that cannot move down by 1 row.
+ */
+function isGrounded(piece) {
+  return !canPlace({ ...piece, row: piece.row + 1 });
+}
+
+/**
+ * After a successful move/rotate, refresh or clear the lock deadline depending on groundedness.
+ */
+function updateLockDeadlineForGrounded(piece) {
+  if (isGrounded(piece)) {
+    lockDeadline = performance.now() + LOCK_DELAY_MS;
+  } else {
+    lockDeadline = null;
+  }
+}
+function drawNextPreview(piece) {
+  if (!piece || !previewCanvas) return;
+
+  const w = previewCanvas.width, h = previewCanvas.height;
+  pctx.clearRect(0, 0, w, h);
+
+  // tile size for the preview (fits in a ~4x4 area)
+  const cellSize = Math.floor(Math.min(w, h) / 4.2);
+  const offs = SHAPES[piece.kind][piece.rot];
+
+  // bounds of the shape
+  let minR =  Infinity, maxR = -Infinity, minC =  Infinity, maxC = -Infinity;
+  for (const [dr, dc] of offs) {
+    if (dr < minR) minR = dr; if (dr > maxR) maxR = dr;
+    if (dc < minC) minC = dc; if (dc > maxC) maxC = dc;
+  }
+  const cols = maxC - minC + 1;
+  const rows = maxR - minR + 1;
+  const gridW = cols * cellSize, gridH = rows * cellSize;
+  const gx = Math.floor((w - gridW) / 2);
+  const gy = Math.floor((h - gridH) / 2);
+
+ // simple, clean preview using the same cell painter
+for (let i = 0; i < offs.length; i++) {
+  const [dr, dc] = offs[i];
+  const x = gx + (dc - minC) * cellSize;
+  const y = gy + (dr - minR) * cellSize;
+
+  // use the same drawer as the board, but point it at pctx
+  drawCellBody(
+    pctx,             // which canvas to draw to
+    x, y,             // top-left in pixels
+    cellSize,         // cell size for preview
+    piece.vals[i],    // value of this cell
+    false,            // not an "active" piece highlight
+    Date.now()        // time for pulsing lock animation (or 0 to freeze)
+  );
+}
+
+}
+
+
+
+// === Level curve helpers ===
+
+
+
+// Tick (ms) per level: big jumps early, smaller later, with a hard floor.
+// Drop delay for a given level, from the chosen base speed
+function tickFor(level, baseMs) {
+  const MIN_DELAY   = 200;
+  const PER_LEVEL_F = 0.97;
+  const delay = baseMs * Math.pow(PER_LEVEL_F, Math.max(0, level - 1));
+  return Math.max(MIN_DELAY, Math.round(delay));
+}
+
+  
+// Build adjacency for a tetromino shape: which cell indices touch orthogonally
+function buildPieceAdjacency(offsets){
+  const adj = Array.from({length: offsets.length}, ()=>[]);
+  for (let i=0;i<offsets.length;i++){
+    const [ri,ci] = offsets[i];
+    for (let j=i+1;j<offsets.length;j++){
+      const [rj,cj] = offsets[j];
+      const touching = (Math.abs(ri-rj)+Math.abs(ci-cj)===1);
+      if (touching){ adj[i].push(j); adj[j].push(i); }
+    }
+  }
+  return adj;
+}
+function highestTile() {
+  let max = 0;
+  for (let r=0;r<H;r++) for (let c=0;c<W;c++)
+    max = Math.max(max, cellVal(state.board[r][c]));
+  return max;
+}
+
+
+// Returns a weight table for the current difficulty.
+// Base is {2:60,4:25,8:10,16:5}; we nudge it by level and by board max.
+function weightsFor(level, _maxTile /* unused */) {
+  const MAX_EXP = 6; // cap spawnable ceiling if you don't want 6561 to spawn
+  const maxExpAllowed = Math.min(2 + Math.floor((level - 1) / 3), MAX_EXP);
+
+  const weights = {};
+  // geometric decay so higher tiles stay rare
+  for (let e = 1; e <= maxExpAllowed; e++) {
+    const val = 3 ** e;
+    const w = Math.max(1, Math.round(100 * Math.pow(0.55, e - 1)));
+    weights[val] = w;
+  }
+  return weights;
+}
+
+
+
+
+
+// Pick a value from NUMBER_WEIGHTS but avoiding a set of forbidden values
+// Weighted pick from a table, avoiding any values in `forbidden`
+// Accepts Set | Array | number | undefined (we coerce to Set)
+function weightedExcept(table, forbidden) {
+  const forb =
+    forbidden && typeof forbidden.has === "function"
+      ? forbidden
+      : new Set(
+          forbidden == null
+            ? []
+            : Array.isArray(forbidden)
+            ? forbidden
+            : [forbidden]
+        );
+
+  const entries = Object.entries(table)
+    .map(([k, v]) => [Number(k), Number(v)])
+    .filter(([val]) => !forb.has(val));
+
+  if (entries.length === 0) {
+    // fall back to full weights if we filtered everything out
+    return weighted(table);
+  }
+
+  const total = entries.reduce((a, [, w]) => a + w, 0);
+  let r = Math.random() * total, acc = 0;
+  for (const [val, w] of entries) {
+    acc += w;
+    if (r <= acc) return val;
+  }
+  return entries[entries.length - 1][0];
+}
+
+// Assign values to a piece so no two orth-adjacent cells are equal
+// Assign values so no orth-adjacent cells are equal, and limit high tiles per piece
+function assignAntiAdjacentValues(offsets, table, highCutoff=16, maxHigh=1){
+  const adj = buildPieceAdjacency(offsets);
+  const vals = new Array(offsets.length).fill(0);
+  const order = [...vals.keys()].sort((a,b)=> adj[b].length - adj[a].length);
+
+  function countHigh() { return vals.filter(v=> v>=highCutoff).length; }
+
+  function dfs(idx){
+    if (idx===order.length) return true;
+    const i = order[idx];
+
+    const forbidden = new Set();
+    for (const j of adj[i]) if (vals[j]!==0) forbidden.add(vals[j]);
+
+    for (let attempt=0; attempt<8; attempt++){
+      const v = weightedExcept(table, forbidden);
+      const wouldBeHigh = (v >= highCutoff);
+      if (wouldBeHigh && countHigh() >= maxHigh) { forbidden.add(v); continue; }
+
+      vals[i] = v;
+      if (dfs(idx+1)) return true;
+      forbidden.add(v);
+    }
+    vals[i] = 0;
+    return false;
+  }
+
+  if (!dfs(0)){
+    for (let i=0;i<vals.length;i++) vals[i] = weighted(table);
+  }
+  return vals;
+}
+// --- Level-up toast FX ---
+let levelToasts = [];                 // already there
+const LEVEL_TOAST_MS  = 1500;         // was 900 → slower, more visible
+const LEVEL_TOAST_Y0  = 0.42;         // start a bit lower (closer to center)
+const LEVEL_TOAST_DR  = 60;           // travel a little farther
+
+
+function pushLevelToast(level, cause = 'level') {
+  levelToasts.push({
+    level,
+    cause,
+    t0: performance.now(),
+    x: canvas.width / 2,
+    y: canvas.height * LEVEL_TOAST_Y0
+  });
+}
+
+
+/* =========================
+   Shapes
+   ========================= */
+const SHAPES = {
+  I: [[[0,-1],[0,0],[0,1],[0,2]],[[-1,1],[0,1],[1,1],[2,1]],[[1,-1],[1,0],[1,1],[1,2]],[[-1,0],[0,0],[1,0],[2,0]]],
+  O: [[[0,0],[0,1],[1,0],[1,1]],[[0,0],[0,1],[1,0],[1,1]],[[0,0],[0,1],[1,0],[1,1]],[[0,0],[0,1],[1,0],[1,1]]],
+  T: [[[0,-1],[0,0],[0,1],[1,0]],[[-1,0],[0,0],[1,0],[0,1]],[[0,-1],[0,0],[0,1],[-1,0]],[[-1,0],[0,0],[1,0],[0,-1]]],
+  S: [[[0,0],[0,1],[1,-1],[1,0]],[[-1,0],[0,0],[0,1],[1,1]],[[0,0],[0,1],[1,-1],[1,0]],[[-1,0],[0,0],[0,1],[1,1]]],
+  Z: [[[0,-1],[0,0],[1,0],[1,1]],[[-1,1],[0,0],[0,1],[1,0]],[[0,-1],[0,0],[1,0],[1,1]],[[-1,1],[0,0],[0,1],[1,0]]],
+   J: [
+    [[0,-1],[0,0],[0,1],[1,-1]],              // rot 0 (same)
+    [[ 1, 0],[0,0],[-1,0],[ 1, 1]],           // rot 1 (fixed)
+    [[0,-1],[0,0],[0,1],[-1,1]],              // rot 2 (same)
+    [[-1,0],[0,0],[1,0],[-1,-1]],             // rot 3 (fixed)
+  ],
+ L: [
+  [[ 0,-1],[ 0, 0],[ 0, 1],[ 1, 1]], // rot0
+  [[-1, 0],[ 0, 0],[ 1, 0],[-1, 1]], // rot1
+  [[ 0,-1],[ 0, 0],[ 0, 1],[-1,-1]], // rot2
+  [[ 1, 0],[ 0, 0],[-1, 0],[ 1,-1]], // rot3 ✅ fixed
+],
+
+};
+const ORDER = ["I","J","L","O","S","T","Z"];
+
+/* =========================
+   Piece ops
+   ========================= */
+function randomPiece() {
+ const kind = nextKind();
+  const rot = 0, row = 0, col = Math.floor(W/2);
+  const offs = SHAPES[kind][rot];
+
+  // NEW: dynamic weights + high cap by level
+  const maxOnBoard = highestTile();
+  const table = weightsFor(state.level, maxOnBoard);
+
+  // At early levels allow at most one tile >=16 per piece; later levels may allow 2
+  const highCap = (state.level < 8 ? 1 : (state.level < 13 ? 1 : 2));
+const valsRaw = assignAntiAdjacentValues(offs, table, /*highCutoff=*/27, /*maxHigh=*/highCap);
+
+// Jammer chance ramps 5% -> 10% with level; never lock >64
+// --- Locked "bomb" tiles: make them rare and small ---
+const LOCK_BASE_PROB  = 0.02;   // start low
+const LOCK_RAMP_PER_L = 0.002;  // slow increase per level
+const LOCK_MAX_PROB   = 0.05;  // hard cap
+const rampP = Math.min(LOCK_MAX_PROB, LOCK_BASE_PROB + state.level * LOCK_RAMP_PER_L);
+
+// Lock only small number tiles; never specials or big tiles
+const vals = valsRaw.map(v => {
+  const raw = Math.abs(v|0);
+  const eligible = isNumberTile(v) && raw <= 27;  // bombs stay controllable
+  return (eligible && Math.random() < rampP) ? lockOf(raw) : v;
+});
+
+// --- Inject specials (rare) on unlocked small cells ---
+const lvl   = state.level;
+const pMult = Math.min(BASE_MULT_PROB + lvl * MULT_SCALE_PER_L, MULT_MAX_PROB);
+const pDiv  = Math.min(BASE_DIV_PROB  + lvl * DIV_SCALE_PER_L, DIV_MAX_PROB);
+
+
+
+let specialsAdded = 0;
+for (let i = 0; i < vals.length; i++) {
+  const v = vals[i];
+  if (isLocked(v) || Math.abs(v) > 81) continue;
+  
+  if (specialsAdded >= 1) continue;
+
+  const r = Math.random();
+  if (r < pMult)      { vals[i] = TILE_MULT; specialsAdded++; }
+  else if (r < pMult + pDiv) { vals[i] = TILE_DIV;  specialsAdded++; }
+}
+
+return {kind,row,col,rot,vals};
+
+}
+
+function pieceCells(p) {
+  const offs = SHAPES[p.kind][p.rot];
+  return offs.map(([dr,dc],i)=> [p.row+dr, p.col+dc, p.vals[i]]);
+}
+function canPlace(p) {
+  for (const [r,c] of pieceCells(p)) {
+    if (!inBounds(r,c) || state.board[r][c]!==0) return false;
+  }
+  return true;
+}
+function movePiece(dr, dc) {
+  if (!state.piece) return;
+  const t = { ...state.piece, row: state.piece.row + dr, col: state.piece.col + dc };
+  if (!canPlace(t)) return;
+
+  state.piece = t;
+
+  // If grounded after the move, refresh the lock delay; otherwise clear it.
+  const grounded = !canPlace({ ...state.piece, row: state.piece.row + 1 });
+  if (grounded) lockDeadline = performance.now() + LOCK_DELAY_MS;
+  else lockDeadline = null;
+}
+
+function rotatePiece(clockwise = true) {
+  if (!state.piece) return;
+
+  const p = state.piece;
+  const fromRot = p.rot;
+  const toRot   = nextRotationIndex(fromRot, clockwise);
+
+  // map the values to the target rotation
+  const rotatedVals = rotatedValsFor(p.kind, fromRot, toRot, p.vals, clockwise);
+
+  // build the rotation candidate at the same column/row first
+  const candidate = { ...p, rot: toRot, vals: rotatedVals };
+
+  // try simple horizontal kicks to fit the rotated shape
+  const placed = tryHorizontalKicks(candidate);
+  if (!placed) {
+    // no space to rotate → do nothing (and crucially, no unintended drop)
+    return;
+  }
+
+  // commit rotation
+  state.piece = placed;
+  buzz(10);
+
+  // refresh lock delay only if now grounded
+  updateLockDeadlineForGrounded(state.piece);
+}
+
+
+
+
+
+function tryFall() {
+  if (!state.piece) return false;
+  const t = { ...state.piece, row: state.piece.row + 1 };
+  if (canPlace(t)) {
+    state.piece = t;
+    lockDeadline = null;        // reset grace period when still falling
+    return true;
+  } else {
+    // piece has touched ground — start the lock timer if not already set
+    if (lockDeadline == null) {
+      lockDeadline = performance.now() + LOCK_DELAY_MS;
+    }
+    return false;
+  }
+}
+
+function hardDrop() {
+  while (tryFall()){}
+  lockPiece();
+  buzz(25); // haptic on hard drop
+}
+
+/* =========================
+   Game flow
+   ========================= */
+function spawnPiece() {
+  // take from queue if present; otherwise generate
+  const base = state.nextPiece ?? randomPiece();
+
+  // try to place it with your existing horizontal kick order
+  for (const dc of [0, -1, 1, -2, 2]) {
+    const t = { ...base, col: base.col + dc };
+    if (canPlace(t)) {
+      state.piece = t;
+
+      // queue the next and update the preview
+      state.nextPiece = randomPiece();
+      drawNextPreview(state.nextPiece);
+
+      return true;
+    }
+  }
+  gameOver();
+  return false;
+}
+
+function lockPiece() {
+  if (!state.piece) return;
+  for (const [r,c,v] of pieceCells(state.piece)) {
+    if (!inBounds(r,c) || state.board[r][c]!==0) { gameOver(); return; }
+    state.board[r][c] = v;
+  }
+  state.piece = null;
+  resolveLandingSequence();
+  if (state.running) spawnPiece();
+}
+function resolveLandingSequence() {
+  state.combo = 0;
+  let safety = 100;
+  while (safety-- > 0) {
+    const fused = mergeCascade();
+    if (!fused) break;
+    state.combo += 1;
+  }
+}
+function landingRowForColumn(startRow, col) {
+  let r = startRow;
+  while (r + 1 < H && state.board[r + 1][col] === 0) r++;
+  return r;
+}
+
+
+function processSpecialAdjacencies() {
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  const used = new Set();          // prevent overlapping uses in this pass
+  let changed = false;
+  let points  = 0;
+
+  const key = (r,c) => r + "," + c;
+
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const v = state.board[r][c];
+      const raw = Math.abs(v | 0);
+      if (raw !== TILE_MULT && raw !== TILE_DIV) continue;  // only specials
+      if (used.has(key(r,c))) continue;
+
+      for (const [dr, dc] of dirs) {
+        const rr = r + dr, cc = c + dc;
+        if (!inBounds(rr, cc)) continue;
+
+        const u = state.board[rr][cc];
+        if (!isNumberTile(u)) continue;                      // act only on numbers
+
+        if (raw === TILE_MULT) {
+     
+        const val = cellVal(u);
+const tripled = Math.min(val * 3, 19683);
+console.log("SPECIAL ×3 at", r, c, "tripling", val, "→", tripled);
+          state.board[rr][cc] = unlockOf(tripled);
+          state.board[r][c]   = 0;
+
+     points  += tripled;
+          changed  = true;
+
+          mergeFlash.push({ r: rr, c: cc, untilMs: performance.now() + MERGE_FLASH_MS, role: 'keeper' });
+          buzz(8);
+
+          used.add(key(r,c)); used.add(key(rr,cc));
+          break;
+        }
+
+     if (raw === TILE_DIV) {
+  let acted = false;
+
+  // priority: down, left, up, right
+  for (const [dr, dc] of [[1,0],[0,-1],[-1,0],[0,1]]) {
+    const rr = r + dr, cc = c + dc;
+    if (!inBounds(rr, cc)) continue;
+
+    const u = state.board[rr][cc];
+    if (!isNumberTile(u)) continue;
+
+    const val = cellVal(u);
+    if (val < 9 || (val % 3) !== 0) continue;       // divisible by 3 and ≥ 9
+
+    const third = val / 3;
+
+ // consume divider
+state.board[r][c] = 0;
+
+// keep one third on the neighbor
+state.board[rr][cc] = unlockOf(third);
+
+// minimal forbid: divider cell and kept neighbor
+const forbid = new Set([ key(r,c), key(rr,cc) ]);
+
+// pick up to two placements with fallbacks
+const spots = pickThirdSpots(forbid, 2);
+
+// place with immediate landing to avoid floating
+if (spots.length === 2) {
+  {
+    const [aR, aC] = spots[0];
+    const lr = landingRowForColumn(aR, aC);
+    state.board[lr][aC] = unlockOf(third);
+    mergeFlash.push({ r: lr, c: aC, untilMs: performance.now() + MERGE_FLASH_MS, role: 'keeper' });
+  }
+  {
+    const [bR, bC] = spots[1];
+    const lr = landingRowForColumn(bR, bC);
+    state.board[lr][bC] = unlockOf(third);
+    mergeFlash.push({ r: lr, c: bC, untilMs: performance.now() + MERGE_FLASH_MS, role: 'keeper' });
+  }
+} else if (spots.length === 1) {
+  {
+    const [aR, aC] = spots[0];
+    const lr = landingRowForColumn(aR, aC);
+    state.board[lr][aC] = unlockOf(third);
+    mergeFlash.push({ r: lr, c: aC, untilMs: performance.now() + MERGE_FLASH_MS, role: 'keeper' });
+  }
+  {
+    const lr = landingRowForColumn(r, c);
+    state.board[lr][c] = unlockOf(third);
+    mergeFlash.push({ r: lr, c, untilMs: performance.now() + MERGE_FLASH_MS, role: 'keeper' });
+  }
+} else {
+  const lr = landingRowForColumn(r, c);
+  state.board[lr][c] = unlockOf(third);
+  mergeFlash.push({ r: lr, c, untilMs: performance.now() + MERGE_FLASH_MS, role: 'keeper' });
+}
+
+
+
+    // visual + haptics for the kept neighbor
+    mergeFlash.push({ r: rr, c: cc, untilMs: performance.now() + MERGE_FLASH_MS, role: 'keeper' });
+    buzz(8);
+
+    used.add(key(r,c)); used.add(key(rr,cc));
+    points += val;                   
+    changed = true;
+    acted = true;
+    break;                           // first valid neighbor only
+  }
+
+  if (!acted) continue;              // no valid neighbor → next cell
+}
+
+      }
+    }
+  }
+
+ 
+  return changed;
+}
+
+/* =========================
+   Fusion / Lines / Gravity
+   ========================= */
+
+function mergeCascade() {
+  let anyMerged = false;
+
+  while (true) {
+    // 1) Specials first (may open new merge opportunities)
+    const specialsChanged = processSpecialAdjacencies();
+    if (specialsChanged) anyMerged = true;
+
+    // 2) Collect equal-adjacent numeric pairs
+    const fusions = collectAdjacentEqualPairs();
+
+    // No fusions available
+    if (fusions.length === 0) {
+      if (!specialsChanged) break; // done with the cascade
+      applyGravity();              // settle results of specials, then loop again
+      continue;
+    }
+
+    // 3) Apply fusions and visuals
+    const basePoints = applyFusions(state.board, fusions);
+	applyGravity(); 
+    flashMergedCells(fusions);
+
+    // Milestone bonus (score only, no level jump)
+    const made  = highestTileFromFusions(fusions);
+    const burst = BURST_BY_TILE.get(made) || 0;
+    if (burst > 0 && !state.seenMilestones.has(made)) {
+      const bonus = Math.floor((Math.log(made) / Math.log(3)) * 10 * burst);
+      state.score += applyCombo(bonus);
+      state.seenMilestones.add(made);
+    }
+
+    // First-time celebration toast for big tiles
+    const celebrate = [27, 81, 243, 729, 2187, 6561, 19683];
+    if (celebrate.includes(made) && !state.seenTiles.has(made)) {
+      const src = fusions.find(f => (f.val * 3) === made) || fusions[0];
+      pushTileToast(made, { r: src.rk, c: src.ck });
+      console.log(`Toast triggered for new milestone tile: ${made}`);
+      state.seenTiles.add(made);
+    }
+// 7) Score & progress (direct for triples)
+state.score += applyCombo(basePoints);
+
+
+    updateProgressAndSpeed(0);
+    anyMerged = true;
+    buzz(8);
+
+    // 8) Big-tile sweep checks
+    checkAndApplySweepIfNeeded();
+  }
+
+  return anyMerged;
+}
+
+
+// It forms non-overlapping TRIPLES inside 4-dir connected components of equal value.
+// Keeper rule = your original: lowest row, then rightmost column.
+function collectAdjacentEqualPairs() {
+  const used  = new Set();   // cells already taken by a triple in this pass
+  const seen  = new Set();   // BFS visitation
+  const out   = [];
+  const key   = (r,c) => r + "," + c;
+  const dirs  = [[1,0],[-1,0],[0,1],[0,-1]];
+
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const v = state.board[r][c];
+      if (!isNumberTile(v)) continue;
+
+      const k0 = key(r,c);
+      if (seen.has(k0) || used.has(k0)) continue;
+
+      const val = cellVal(v);
+
+      // --- BFS gather one component of equal numbers ---
+      const q = [[r,c]];
+      seen.add(k0);
+      const comp = [];
+
+      while (q.length) {
+        const [rr, cc] = q.shift();
+        const kk = key(rr,cc);
+        if (!used.has(kk)) comp.push([rr,cc]); // only free cells are available
+
+        for (const [dr, dc] of dirs) {
+          const nr = rr + dr, nc = cc + dc;
+          const kn = key(nr,nc);
+          if (!inBounds(nr,nc) || seen.has(kn)) continue;
+          const u = state.board[nr][nc];
+          if (!isNumberTile(u) || cellVal(u) !== val) continue;
+          seen.add(kn);
+          q.push([nr,nc]);
+        }
+      }
+
+      if (comp.length < 3) continue;
+
+      // --- Make as many triples as possible from this component ---
+      // Keeper priority: lowest row, then rightmost col
+      comp.sort((a,b) => (b[0] - a[0]) || (b[1] - a[1]));
+
+      while (comp.length >= 3) {
+        // choose keeper
+        const [kr, kc] = comp.shift();
+
+        // choose two closest by Manhattan distance to the keeper
+        const ranked = comp
+          .map(([pr,pc], i) => ({ i, d: Math.abs(pr - kr) + Math.abs(pc - kc) }))
+          .sort((a,b) => a.d - b.d);
+
+        if (ranked.length < 2) break;
+
+        const iA = ranked[0].i, iB = ranked[1].i;
+        // remove by larger index first to avoid reindexing errors
+        const [ar, ac] = comp.splice(Math.max(iA, iB), 1)[0];
+        const [br, bc] = comp.splice(Math.min(iA, iB), 1)[0];
+
+        // mark consumed
+        used.add(key(kr,kc));
+        used.add(key(ar,ac));
+        used.add(key(br,bc));
+
+        // Back-compat fields rc,cc = first consumed
+        out.push({
+          rk: kr, ck: kc,
+          rc: ar, cc: ac,                 // legacy fields still present
+          consumed: [{ r: ar, c: ac }, { r: br, c: bc }], // new, explicit
+          val
+        });
+      }
+    }
+  }
+  return out;
+}
+
+
+
+
+
+
+function applyGravity() {
+  for (let c=0;c<W;c++) {
+    let write=H-1;
+    for (let r=H-1;r>=0;r--) {
+      const v=state.board[r][c];
+      if (v!==0) { if (r!==write){state.board[write][c]=v; state.board[r][c]=0;} write--; }
+    }
+  }
+}
+function applyCombo(points){
+  const combo = Math.min(state.combo, 4);
+  return Math.round(points * (1 + COMBO_STEP * combo));
+}
+
+/* =========================
+   Sweep (2187/6561/19683)
+   ========================= */
+
+
+
+// Helper: does the board contain at least one tile == value?
+function boardHasTile(board, value) {
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++)
+    if (cellVal(board[r][c]) === value) return true;
+  return false;
+}
+
+function checkAndApplySweepIfNeeded() {
+  // Walk milestones high → low. Only stop if a sweep actually ran.
+  for (let i = MILESTONES.length - 1; i >= 0; i--) {
+    const m = MILESTONES[i];
+
+    // Reset per-cascade latch if that milestone is no longer present
+    if (!boardHasTile(state.board, m)) state.sweptFor.delete(m);
+
+    // Skip if we've already swept this milestone or already latched this cascade
+    if (state.seenSweeps.has(m) || state.sweptFor.has(m)) continue;
+
+    // Trigger on first appearance of ONE tile, at any level
+    if (boardHasTile(state.board, m)) {
+      const didSweep = applySweep(m);    // should return true on success
+      if (didSweep) {
+        state.sweptFor.add(m);           // block repeats in this cascade
+        state.seenSweeps.add(m);         // once per milestone for the run
+        break;                           // stop only after a real sweep
+      }
+      // if no sweep happened, continue to check lower milestones
+    }
+  }
+}
+
+
+// Full-board sweep: keep ONE milestone tile, clear every other cell.
+// Triggers on first appearance of a milestone at any level, once per milestone.
+function applySweep(m) {
+  const mult = SWEEP_MULT[m];
+
+  if (!state.seenSweeps) state.seenSweeps = new Set();
+  if (state.seenSweeps.has(m)) return false; // once per milestone
+
+  // 1) Find all milestone tiles
+  const pos = [];
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    if (cellVal(state.board[r][c]) === m) pos.push([r, c]);
+  }
+  if (pos.length === 0) return false; // nothing to do
+
+  // 2) Choose ONE to keep: lowest-most, then right-most
+  pos.sort((a, b) => (b[0] - a[0]) || (b[1] - a[1]));
+  const [kr, kc] = pos[0];
+
+  // 3) Clear every other cell on the board
+  let cleared = 0;
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    if (r === kr && c === kc) continue;           // keep this one
+    cleared += cellVal(state.board[r][c]);
+    state.board[r][c] = 0;
+  }
+
+  // 4) Ensure the kept tile is the unlocked milestone (or upgrade, if that’s your rule)
+  state.board[kr][kc] = unlockOf(m);
+
+  // 5) Score: cleared sum * multiplier + milestone, then combo
+  const gained = applyCombo(cleared * mult + m);
+  state.score += gained;
+
+  // 6) Effects and latches
+  updateProgressAndSpeed(0);
+  buzz(25);
+  state.seenSweeps.add(m);
+
+  return true; // tell caller a sweep actually happened
+}
+
+
+
+/* =========================
+   Rendering
+   ========================= */
+// Renders a short, warm glow on a cell.
+// role: 'keeper' (brighter) | 'consumed' (softer)
+// Softer, more muted merge glow
+function drawMergeGlow(r, c, role, now) {
+  const x = c * CELL, y = r * CELL;
+
+  // role-based tuning (keeper still slightly stronger)
+  const edgeAlpha = role === 'keeper' ? 0.55 : 0.35;  // was ~0.95/0.80
+  const fillAlpha = role === 'keeper' ? 0.10 : 0.06;  // was ~0.22/0.14
+  const blur      = role === 'keeper' ? 8 : 5;        // was 18/12
+  const width     = role === 'keeper' ? 2.5 : 2;      // was 4/3
+
+  // very gentle shimmer
+  const shimmer = 0.85 + 0.15 * Math.sin(now * 0.02);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(100, 220, 255, 1)';
+  ctx.shadowBlur  = blur;
+  ctx.lineWidth   = width + 0.8 * shimmer;
+
+  // outer glow ring
+  ctx.globalAlpha = edgeAlpha;
+ ctx.strokeStyle = 'rgba(150, 240, 255, 1)';
+  ctx.strokeRect(x + 2, y + 2, CELL - 4, CELL - 4);
+
+  // inner energized fill
+  ctx.globalAlpha = fillAlpha;
+  ctx.fillStyle   = 'rgba(190, 250, 255, 1)';
+  ctx.fillRect(x + 4, y + 4, CELL - 8, CELL - 8);
+
+  ctx.restore();
+}
+
+function roundedRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  // no fill/stroke here; caller decides
+}
+
+function draw() {
+  const now = performance.now();
+
+  // Expire time-based effects
+  jamFlash   = jamFlash.filter(f => f.untilMs > now);
+  mergeFlash = mergeFlash.filter(m => m.untilMs > now);
+
+  // Clear frame
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Board (static cells)
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      drawCell(r, c, state.board[r][c], /*active=*/false, now);
+    }
+  }
+
+  // Ghost (projected landing)
+  if (showGhost && state.piece) drawGhostPiece(state.piece);
+
+  // Active piece
+  if (state.piece) {
+    for (const [r, c, v] of pieceCells(state.piece)) {
+      if (inBounds(r, c)) drawCell(r, c, v, /*active=*/true, now);
+    }
+  }
+
+
+
+  // Merge glow overlay (keeper = brighter, consumed = softer)
+  // Requires: mergeFlash entries like { r, c, untilMs, role: 'keeper'|'consumed' }
+  for (const m of mergeFlash) {
+    const tLeft = Math.max(0, m.untilMs - now);
+    const fade  = 1 - (tLeft / MERGE_FLASH_MS); // 0..1 (grows over lifetime)
+
+    // Per-role styling
+    const baseAlpha = m.role === 'keeper' ? 0.9 : 0.7;
+
+    ctx.save();
+    ctx.globalAlpha = baseAlpha * (1 - fade);  // fade out toward the end
+    drawMergeGlow(m.r, m.c, m.role, now);      // uses CELL and ctx
+    ctx.restore();
+  }
+// --- Level toast overlay (slower, higher-contrast) ---
+{
+  const now = performance.now();
+  levelToasts = levelToasts.filter(t => (now - t.t0) < LEVEL_TOAST_MS);
+
+  for (const t of levelToasts) {
+    const dt = now - t.t0;
+    const p  = Math.min(1, dt / LEVEL_TOAST_MS);         // 0..1
+    // keep alpha high early, then ease-out toward the end
+    const ease = 1 - Math.pow(1 - p, 3);                 // cubic ease-out
+    const y = t.y - ease * LEVEL_TOAST_DR;               // float up
+    const scale = 1 + 0.10 * ease;                       // slightly bigger pop
+    const alpha = 1 - ease;                              // lingers brighter longer
+
+    const title = `LEVEL ${t.level}`;
+    const cause =
+      t.cause === 'lines'     ? 'Lines' :
+      t.cause === 'score'     ? 'Score' :
+      t.cause === 'milestone' ? 'Milestone' : '';
+
+    // badge color by cause (keeps your cyan theme but distinct)
+    const badge =
+      t.cause === 'lines'     ? '#7fcfff' :    // blue-cyan
+      t.cause === 'score'     ? '#9ad17a' :    // green
+      t.cause === 'milestone' ? '#f6b26b' :    // amber
+                                '#69a9f5';     // default cyan
+
+    const padX = 84, padY = 28, r = 12;
+
+    ctx.save();
+    ctx.translate(t.x, y);
+    ctx.scale(scale, scale);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // soft badge behind text (slightly stronger alpha so it reads)
+    ctx.globalAlpha = 0.26 * (1 - p);         // start stronger, fade out
+    ctx.fillStyle = badge;
+    roundedRectPath(ctx, -padX, -padY, padX*2, padY*2, r);
+    ctx.fill();
+
+    // title with stroke for dyslexic-friendly contrast
+    ctx.globalAlpha = Math.max(0.85 * (1 - p), 0);  // guard against negatives
+    ctx.font = 'bold 26px Inter, system-ui, sans-serif';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';        // dark outline
+    ctx.strokeText(title, 0, -2);
+    ctx.fillStyle = '#e7eaf0';
+    ctx.fillText(title, 0, -2);
+
+    // subtitle
+    if (cause) {
+      ctx.globalAlpha = Math.max(0.75 * (1 - p), 0);
+      ctx.font = 'bold 13px Inter, system-ui, sans-serif';
+      ctx.lineWidth = 3;
+      ctx.strokeText(cause, 0, 18);
+      ctx.fillStyle = '#cfd6e3';
+      ctx.fillText(cause, 0, 18);
+    }
+
+    ctx.restore();
+  }
+}
+// --- Tile celebration toasts ---
+// --- Tile celebration toasts (grid-anchored, resolution-independent) ---
+{
+  const now = performance.now();
+  tileToasts = tileToasts.filter(t => (now - t.t0) < TILE_TOAST_MS);
+
+  for (const t of tileToasts) {
+    const dt = now - t.t0;
+    const p  = dt / TILE_TOAST_MS;           // 0..1
+    const alpha = 1 - p;
+
+    // distance & size scale with canvas
+    const floatDistance = canvas.height * 0.15;  // ~15% of board height
+    const y = t.y - p * floatDistance;
+
+    // pop-in scale (1.3x -> 1.0)
+    const scale = 1 + 0.3 * (1 - Math.min(p * 2, 1));
+
+    // font size scales with board width
+    const fontSize = Math.floor(canvas.width * 0.08);
+    const strokeW  = Math.max(4, Math.floor(fontSize * 0.12));
+
+    ctx.save();
+    ctx.translate(t.x, y);
+    ctx.scale(scale, scale);
+    ctx.textAlign = "center";
+    ctx.globalAlpha = alpha;
+    ctx.font = `bold ${fontSize}px Inter, system-ui, sans-serif`;
+
+    // outline for contrast on busy boards
+    ctx.lineWidth = strokeW;
+    ctx.strokeStyle = "black";
+    ctx.strokeText(`${t.value}!`, 0, 0);
+
+    ctx.fillStyle = "#fff176"; // gold
+    ctx.fillText(`${t.value}!`, 0, 0);
+    ctx.restore();
+  }
+}
+
+
+  // HUD text
+  ui.score.textContent = state.score.toString();
+  ui.combo.textContent = state.combo.toString();
+  ui.level.textContent = state.level.toString();
+  
+ 
+}
+
+
+function colorFor(v){
+  const raw = Math.abs(v|0);
+  if (raw === 0) return "#151821";
+
+  // specials
+  if (raw === TILE_MULT) return "#5ad27a";  // ×3
+  if (raw === TILE_DIV)  return "#ffb84d";  // ÷3
+
+  // normal number tiles (powers of three)
+  const idx = Math.floor(Math.log(raw) / Math.log(3));
+
+  const base = [
+    "#6a5acd","#7a6fd1","#8c82db","#a07fd2","#c28691",
+    "#d19c66","#9fb24a","#58a87d","#4e96b2","#5d87c6",
+    "#6f9fd4","#8dc6e8"
+  ];
+  return base[Math.min(base.length - 1, idx)];
+}
+
+
+
+function drawCellBody(context, x, y, size, v, active = false, now = 0) {
+  const val = cellVal(v);
+
+  // base fill
+  context.fillStyle = colorFor(val);
+  context.fillRect(x + 1, y + 1, size - 2, size - 2);
+
+  // locked look (glow + pulsing outer stroke + corner ticks)
+  if (isLocked(v)) {
+    // soft inner glow
+    context.fillStyle = "rgba(255, 216, 64, 0.12)";
+    context.fillRect(x + 3, y + 3, size - 6, size - 6);
+
+    // soft inner glow (keep)
+context.fillStyle = "rgba(255, 216, 64, 0.14)";
+context.fillRect(x + 3, y + 3, size - 6, size - 6);
+
+// pulsing outer stroke with additive glow
+const rr = Math.floor(y / size);
+const cc = Math.floor(x / size);
+const a = 0.35 + 0.25 * Math.sin((now * 0.012) + rr * 0.7 + cc * 0.9);
+
+context.save();
+context.globalCompositeOperation = "lighter";     // additive halo
+context.shadowBlur = 10;
+context.shadowColor = "rgba(255,255,255,0.6)";
+context.lineJoin = "round";
+context.lineWidth = 3;
+context.strokeStyle = `rgba(255, 216, 64, ${a.toFixed(3)})`;
+context.strokeRect(x + 1.5, y + 1.5, size - 3, size - 3);
+context.restore();
+
+// high-contrast edge to separate from any fill colour
+context.save();
+context.lineWidth = 1;
+context.strokeStyle = "rgba(0,0,0,0.45)";        // thin dark keyline
+context.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+context.restore();
+
+// crisp corner ticks in white so they pop on dark tiles
+context.save();
+context.lineWidth = 2;
+context.strokeStyle = "rgba(255,255,255,0.9)";
+context.beginPath();
+// top-left tick
+context.moveTo(x + 2, y + 8); context.lineTo(x + 2, y + 2); context.lineTo(x + 8, y + 2);
+// bottom-right tick
+context.moveTo(x + size - 2, y + size - 8);
+context.lineTo(x + size - 2, y + size - 2);
+context.lineTo(x + size - 8, y + size - 2);
+context.stroke();
+context.restore();
+
+  }
+
+  // number
+ // number / symbol label (use displayLabel so 3→"×3", 5→"÷2")
+if (val !== 0) {
+  const raw = Math.abs(val|0);
+  const label = displayLabel(val);
+  context.fillStyle = "#0b0f16";
+  const big = (isNumberTile(raw) && raw >= 1024);
+  context.font = (big ? "bold 12px" : "bold 14px") + " Inter, system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(label, x + size / 2, y + size / 2);
+}
+
+
+  // active outline
+  if (active) {
+    context.strokeStyle = "rgba(255,255,255,.22)";
+    context.lineWidth = 2;
+    context.strokeRect(x + 1.5, y + 1.5, size - 3, size - 3);
+  }
+}
+
+
+function drawCell(r, c, v, active = false, now = 0) {
+  const x = c * CELL, y = r * CELL;
+  drawCellBody(ctx, x, y, CELL, v, active, now);
+}
+
+
+function drawGhostPiece(p) {
+  const gp = projectToFloor(p);
+  if (!gp || gp.row === p.row) return; // already on the floor; no ghost
+
+  for (const [r, c, v] of pieceCells(gp)) {
+    if (!inBounds(r, c)) continue;
+    const x = c * CELL, y = r * CELL;
+
+    // faint shadow fill using the piece's color but very transparent
+    const base = colorFor(cellVal(v));
+    ctx.save();
+    ctx.globalAlpha = 0.25;   // adjust this for stronger/weaker shadow
+    ctx.fillStyle = base;
+    ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+    ctx.restore();
+  }
+}
+
+
+
+/* =========================
+   Loop + Game Over
+   ========================= */
+function step() {
+  if (!state.running) return;
+  if (!tryFall()) {
+    if (lockDeadline && performance.now() >= lockDeadline) {
+      lockPiece();
+      lockDeadline = null;
+    }
+  }
+  draw();
+}
+
+const LB_KEY = 'tetra_lb_v1';
+
+function readLeaderboard() {
+  try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; }
+  catch { return []; }
+}
+
+function writeLeaderboard(rows) {
+  localStorage.setItem(LB_KEY, JSON.stringify(rows));
+}
+
+function getMaxTileOnBoard(board) {
+  let max = 0;
+  for (let r = 0; r < board.length; r++) {
+    for (let c = 0; c < board[r].length; c++) {
+      const v = Math.abs(board[r][c] | 0);
+      if (v > max) max = v;
+    }
+  }
+  return max;
+}
+
+function recordRunToLeaderboard() {
+  const rows = readLeaderboard();
+  const entry = {
+    score: state.score,
+    level: state.level,
+    maxTile: getMaxTileOnBoard(state.board)
+  };
+  rows.push(entry);
+  rows.sort((a, b) => b.score - a.score);
+  writeLeaderboard(rows.slice(0, 50)); // keep top 50
+}
+// Map UI
+ui.overlayLeaderboard = document.getElementById('overlayLeaderboard');
+
+// Render top runs into the overlay
+function renderOverlayLeaderboard() {
+  if (!ui.overlayLeaderboard) return;
+  const rows = readLeaderboard();
+  if (!rows.length) {
+    ui.overlayLeaderboard.innerHTML = `<li class="tiny">No scores yet</li>`;
+    return;
+  }
+  ui.overlayLeaderboard.innerHTML = rows
+    .slice(0, 10)
+    .map((r, i) =>
+      `<li>[${i+1}] <strong>${r.score}</strong> <span class="tiny">· L${r.level} · ${r.maxTile}</span></li>`
+    ).join('');
+}
+
+function restartTimer(){ if (state.timer) clearInterval(state.timer); state.timer = setInterval(step, state.tickMs); }
+function gameOver(){
+  state.running = false;
+  if (state.timer) clearInterval(state.timer);
+
+  // Do NOT auto-save here
+  ui.finalScore.textContent = String(state.score);
+  renderOverlayLeaderboard();
+  ui.overlay.style.display = 'flex';
+}
+
+
+function hideOverlay(){ ui.overlay.style.display = 'none'; }
+
+/* =========================
+   Desktop Input
+   ========================= */
+window.addEventListener('keydown', (e) => {
+  if (!state.running) return;
+  const k = e.key.toLowerCase();
+  if (k==="arrowleft") movePiece(0,-1);
+  else if (k==="arrowright") movePiece(0,1);
+  else if (k==="arrowdown") { if (!tryFall()) lockPiece(); }
+  else if (k==="arrowup") rotatePiece(true);
+  else if (k===" ") hardDrop();
+  else if (k==="p") { state.running=!state.running; if (state.running) restartTimer(); else if (state.timer) clearInterval(state.timer); }
+  draw();
+});
+
+/* =========================
+   Mobile Touch Controls
+   ========================= */
+const TOUCH = { stepX:18, stepY:20, flickY:100, holdMs:300, repeatMs:70 };
+let touchState = null, holdTimer=null, repeatTimer=null;
+
+function startHoldDrop() {
+  stopHoldDrop();
+  holdTimer = setTimeout(() => {
+    if (!state.running) return;
+    if (!tryFall()) { lockPiece(); buzz(6); }
+    draw();
+    repeatTimer = setInterval(() => {
+      if (!state.running) { stopHoldDrop(); return; }
+      if (!tryFall()) { lockPiece(); buzz(6); }
+      draw();
+    }, TOUCH.repeatMs);
+  }, TOUCH.holdMs);
+}
+function stopHoldDrop() { if (holdTimer) clearTimeout(holdTimer), holdTimer=null; if (repeatTimer) clearInterval(repeatTimer), repeatTimer=null; }
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (!state.running) return;
+  canvas.setPointerCapture(e.pointerId);
+  stopHoldDrop();
+  touchState = { id:e.pointerId, sx:e.clientX, sy:e.clientY, lx:e.clientX, ly:e.clientY, t0:performance.now() };
+  startHoldDrop();
+  e.preventDefault();
+}, {passive:false});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!state.running || !touchState || e.pointerId!==touchState.id) return;
+  const dx = e.clientX - touchState.lx;
+  const dy = e.clientY - touchState.ly;
+  const totalDx = e.clientX - touchState.sx;
+  const totalDy = e.clientY - touchState.sy;
+
+  if (Math.abs(dx) >= TOUCH.stepX && Math.abs(totalDx) > Math.abs(totalDy)) {
+    const steps = Math.trunc(dx / TOUCH.stepX);
+    for (let i=0;i<Math.abs(steps);i++) movePiece(0, steps>0 ? 1 : -1);
+    touchState.lx += steps * TOUCH.stepX;
+    draw();
+  }
+  if (dy >= TOUCH.stepY && totalDy > Math.abs(totalDx)) {
+    const drops = Math.trunc(dy / TOUCH.stepY);
+    for (let i=0;i<drops;i++){ if (!tryFall()){ lockPiece(); break; } }
+    touchState.ly += drops * TOUCH.stepY;
+    draw();
+  }
+  e.preventDefault();
+}, {passive:false});
+
+canvas.addEventListener('pointerup', (e) => {
+  if (!touchState || e.pointerId!==touchState.id) return;
+  stopHoldDrop();
+  const dt = performance.now() - touchState.t0;
+  const totalDx = e.clientX - touchState.sx;
+  const totalDy = e.clientY - touchState.sy;
+  const isFlickDown = totalDy > TOUCH.flickY && dt < 250 && totalDy > Math.abs(totalDx);
+  if (state.running && isFlickDown) { hardDrop(); draw(); touchState=null; return; }
+  const tap = Math.abs(totalDx) < 8 && Math.abs(totalDy) < 8 && dt < 250;
+  if (state.running && tap) { rotatePiece(true); draw(); }
+  touchState=null; e.preventDefault();
+}, {passive:false});
+canvas.addEventListener('pointercancel', () => { stopHoldDrop(); touchState=null; });
+
+/* On-screen buttons */
+if (ui.btnLeft) {
+  const repeatPress = (fn) => {
+    let t; const down = () => { if (!state.running) return; fn(); draw(); t = setInterval(()=>{ if (!state.running){clearInterval(t);return;} fn(); draw(); }, 90); };
+    const up = () => { clearInterval(t); };
+    return { down, up };
+  };
+  const leftRpt  = repeatPress(() => movePiece(0,-1));
+  const rightRpt = repeatPress(() => movePiece(0, 1));
+  ui.btnLeft.addEventListener('pointerdown', leftRpt.down);
+  ui.btnLeft.addEventListener('pointerup',   leftRpt.up);
+  ui.btnLeft.addEventListener('pointerleave',leftRpt.up);
+  ui.btnRight.addEventListener('pointerdown', rightRpt.down);
+  ui.btnRight.addEventListener('pointerup',   rightRpt.up);
+  ui.btnRight.addEventListener('pointerleave',rightRpt.up);
+  ui.btnSoft.addEventListener('click', () => { if (!tryFall()) lockPiece(); draw(); });
+  ui.btnRotate.addEventListener('click',  () => { rotatePiece(true); draw(); });
+}
+
+/* =========================
+   UI Handlers
+   ========================= */
+ui.again.onclick   = () => { hideOverlay(); init(true); };
+ui.restart.onclick = () => { hideOverlay(); init(true); };
+ui.pause.onclick   = () => {
+  state.running = !state.running;
+  if (state.running) restartTimer();
+  else if (state.timer) clearInterval(state.timer);
+};
+
+if (ui.saveScore) {
+  ui.saveScore.onclick = () => {
+    try { recordRunToLeaderboard(); } catch(e) { console.warn(e); }
+    renderOverlayLeaderboard();
+    ui.saveScore.disabled = true;
+    ui.skipSave.disabled  = true;
+  };
+}
+if (ui.skipSave) {
+  ui.skipSave.onclick = () => {
+    ui.saveScore.disabled = true;
+    ui.skipSave.disabled  = true;
+  };
+}
+if (ui.clearBoard) {
+  ui.clearBoard.onclick = () => {
+    localStorage.removeItem(LB_KEY); // or use 'tetra_lb_v1'
+    renderOverlayLeaderboard();
+  };
+}
+
+
+ui.hapticsBtn.onclick = () => {
+  hapticsOn = !hapticsOn;
+  ui.hapticsBtn.textContent = 'Haptics: ' + (hapticsOn ? 'On' : 'Off');
+  localStorage.setItem('tetra_haptics', hapticsOn ? 'on' : 'off');
+};
+
+/* =========================
+   Init
+   ========================= */
+function init(resetScore = false) {
+  // reset board & piece state
+  state.board = Array.from({ length: H }, () => Array(W).fill(0));
+  state.piece = null;
+  state.combo = 0;
+
+  // clear sweep/milestone trackers
+  state.sweptFor?.clear();
+  state.seenSweeps?.clear();
+  state.seenMilestones?.clear();
+  state.seenTiles?.clear();
+
+  // clear transient runtime/FX flags
+  lockDeadline = null;
+  jamFlash = [];
+  mergeFlash = [];
+  tileToasts = [];
+  levelToasts = [];
+
+  // reset score/level counters if requested
+  if (resetScore) {
+    state.score = 0;
+    state.lines = 0;
+    state.level = 1;
+    state.linesInLevel = 0;
+    state.scoreAtLevelStart = 0;
+  } else {
+    if (typeof state.level !== "number") state.level = 1;
+  }
+
+  // compute tick from chosen speed baseline
+  state.tickMs = tickFor(state.level, startBaseMs);
+
+  // reflect initial HUD
+  ui.score.textContent = String(state.score);
+  ui.level.textContent = String(state.level);
+
+  // boot game loop
+  state.running = true;
+  state.nextPiece = randomPiece();
+  drawNextPreview(state.nextPiece);
+  spawnPiece();
+  draw();
+
+  if (state.timer) { clearInterval(state.timer); state.timer = null; }
+  restartTimer();
+}
+
+
+init(true);
+function isTrueRotationStep(A, B, clockwise = true) {
+  const rot = ([r,c]) => clockwise ? [-c, r] : [c, -r];
+  const R = A.map(rot);
+  for (let i = 0; i < R.length; i++) {
+    for (let j = 0; j < B.length; j++) {
+      const dr = B[j][0] - R[i][0];
+      const dc = B[j][1] - R[i][1];
+      let ok = true;
+      for (let k = 0; k < R.length; k++) {
+        const rr = R[k][0] + dr, cc = R[k][1] + dc;
+        if (!B.some(([br, bc]) => br === rr && bc === cc)) { ok = false; break; }
+      }
+      if (ok) return true;
+    }
+  }
+  return false;
+}
+
+// Usage:
+for (const k of ORDER) {
+  for (let r = 0; r < 4; r++) {
+    const A = SHAPES[k][r];
+    const B = SHAPES[k][(r+1)%4];
+    if (!isTrueRotationStep(A, B, true)) {
+      console.warn(`Rotation mismatch: ${k} rot ${r} → ${(r+1)%4}`);
+    }
+  }
+}
+
+  <!-- your game logic script is here -->
+
+document.addEventListener("DOMContentLoaded", () => {
+  function setChromeHeights() {
+    const root = document.documentElement;
+    const gamebar = document.querySelector('.gamebar');
+    const hud = document.querySelector('.touch-hud');
+
+    const barH = gamebar ? Math.ceil(gamebar.getBoundingClientRect().height) : 0;
+    const hudH = hud ? Math.ceil(hud.getBoundingClientRect().height) : 0;
+
+    root.style.setProperty('--bar-h', barH + 'px');
+    root.style.setProperty('--hud-h', hudH + 'px');
+  }
+
+  setChromeHeights();
+  addEventListener('resize', setChromeHeights);
+  addEventListener('orientationchange', setChromeHeights);
+});
+  </script>
+</div>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
