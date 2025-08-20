@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Game Setup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    /* Reset */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+body{
+  background: radial-gradient(1200px 600px at 20% 10%, #14213d 0%, transparent 50%),
+              radial-gradient(1000px 600px at 80% 90%, #0b3d91 0%, transparent 55%),
+              linear-gradient(180deg, #0b1220 0%, #09152d 100%);
+}
+body {
+  margin: 0;
+  height: 100vh;                /* full screen height */
+  display: flex;                /* enable flexbox */
+  justify-content: center;      /* center horizontally */
+  align-items: center;          /* center vertically */
+  overflow: hidden;             /* avoid scrollbars */
+}
+
+    .menu {
+	 width:min(920px, 92vw);
+      background: #000005;
+      padding: 3.5rem 4rem;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+      animation: fadeIn 1s ease-out;
+    }
+
+
+    label {
+      display: block;
+ 
+      font-size: 1.1rem;
+    }
+
+    select {
+	margin-top: 1.5rem;
+	margin-top: 1.5rem;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      border: none;
+      font-size: clamp(14px, 1.8vw, 20px);
+      background: #99c5f0;
+      color: #000c17;
+      outline: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    select:hover {
+      background: #99c5f0;
+    }
+
+   .btn {
+   margin-top: 2rem;
+  --pad: clamp(10px,2.6vw,16px);
+  padding: var(--pad) clamp(18px, 5vw, 32px);
+  border-radius: 10px;
+ font-size: clamp(18px, 2.5vw, 28px);
+  font-weight: 400;
+  border: none;
+  color:#00111a;
+  background: linear-gradient(135deg, #4de1ff 0%, #04318a 100%);
+  box-shadow: 0 10px 24px rgba(20,140,255,0.35);
+  cursor:pointer;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.btn:hover { 
+  transform: translateY(-2px); 
+  box-shadow: 0 14px 28px rgba(20,140,255,0.42); 
+}
+.btn:active { 
+  transform: translateY(0); 
+  filter: brightness(.95); 
+}
+
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+/* Floating neon squares */
+.spark{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.spark span{
+  position: absolute;
+  top: 100vh;                     /* start below screen */
+  width: 36px; height: 36px;
+  border-radius: 0;
+  background: rgba(77,225,255,.14);
+  box-shadow:
+    0 0 22px rgba(77,225,255,.40),
+    inset 0 0 4px rgba(255,255,255,.25);
+  opacity: .5;
+  /* ONE animation that moves + spins (don’t stack two that both use transform) */
+  animation: moveSpin 18s linear infinite;
+}
+
+/* variety */
+.spark span:nth-child(2){ width:28px; height:28px; animation-duration:20s; }
+.spark span:nth-child(3){ width:44px; height:44px; animation-duration:22s; }
+.spark span:nth-child(4){ width:32px; height:32px; animation-duration:24s; }
+.spark span:nth-child(5){ width:26px; height:26px; animation-duration:26s; }
+
+@keyframes moveSpin{
+  from { transform: translateY(0) rotate(0deg); }
+  to   { transform: translateY(-120vh) rotate(360deg); }
+}
+
+/* keep main UI above */
+.card, .menu, .container, main { position: relative; z-index: 1; }
+
+
+
+
+
+  </style>
+</head>
+<body>
+
+<div class="spark">
+  <span style="left:8%; animation-delay:-2s;"></span>
+  <span style="left:24%; animation-delay:-5s;"></span>
+  <span style="left:48%; animation-delay:-8s;"></span>
+  <span style="left:66%; animation-delay:-11s;"></span>
+  <span style="left:82%; animation-delay:-14s;"></span>
+  <span style="left:5%;  animation-delay:-2s;"></span>
+  <span style="left:12%; animation-delay:-8s;"></span>
+  <span style="left:25%; animation-delay:-14s;"></span>
+  <span style="left:37%; animation-delay:-5s;"></span>
+  <span style="left:46%; animation-delay:-11s;"></span>
+  <span style="left:53%; animation-delay:-3s;"></span>
+  <span style="left:65%; animation-delay:-17s;"></span>
+  <span style="left:72%; animation-delay:-7s;"></span>
+  <span style="left:81%; animation-delay:-13s;"></span>
+  <span style="left:92%; animation-delay:-19s;"></span>
+</div>
+
+  <div class="menu">
+    <label for="boardSize" style="display:block;font-size:2rem; margin-top:1rem;color:#8fbff5">Board size</label>
+
+    <select id="boardSize">
+	     <option value="10x20">10 × 20 (Classic)</option>
+      <option value="8x16">8 × 16 (Challenge)</option>
+      <option value="12x24">12 × 24 (Extended)</option>
+    </select>
+
+    
+   
+<label for="startSpeed" style="display:block;font-size:2rem; margin-top:1rem;color:#8fbff5">Starting speed</label>
+<select id="startSpeed">
+  <option value="slow">Slow</option>
+  <option value="normal" selected>Normal</option>
+  <option value="fast">Fast</option>
+  <option value="insane">Intense</option>
+</select>
+<br>
+<button class="btn" onclick="startGame()">Start Game</button>
+  </div>
+
+<script>
+  function startGame() {
+    const size  = document.getElementById('boardSize').value;
+    const speed = document.getElementById('startSpeed').value;
+    window.location.href = `game.html?board=${size}&speed=${speed}`;
+  }
+</script>
+
+</body>
+</html>

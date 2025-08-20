@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Block²</title>
+<style>
+:root{
+  --bg1:#0b1220;
+  --bg2:#09152d;
+  --accent:#4de1ff;
+  --accent2:#ffbe0b;
+  --text:#eef6ff;
+}
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+ body{
+  margin: 0;
+  min-height: 100dvh;                 /* better on mobile than 100vh */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 100%);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  overflow: hidden;
+  position: relative;                 /* for stacking context */
+}
+
+  .card{
+    width:min(920px, 92vw);
+    padding: clamp(16px, 5vw, 36px);
+    background: #000103;
+    border:1px solid #000103;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.45), inset 0 0 60px rgba(255,255,255,0.04);
+    backdrop-filter: blur(8px);
+    transform: translateY(8px);
+    animation: floatIn 700ms cubic-bezier(.21,1,.21,1) forwards;
+  }
+.logo {
+  display: block; /* or remove display:flex entirely */
+  margin: 0 auto;
+  width: 50%;
+  height: auto;
+}
+
+  .cta{
+    margin-top: clamp(16px, 3vw, 28px);
+    display:flex;
+    gap:12px;
+    justify-content:center;
+  }
+  .btn{
+    --pad: clamp(10px,2.6vw,16px);
+    padding: var(--pad) clamp(18px, 5vw, 32px);
+    border-radius: 14px;
+    font-size: clamp(16px, 2.6vw, 22px);
+    font-weight: 700;
+    border: none;
+    color:#00111a;
+    background: linear-gradient(135deg, var(--accent) 0%, #04318a 100%);
+    box-shadow: 0 10px 24px rgba(20,140,255,0.35);
+    cursor:pointer;
+    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  .btn:hover{ transform: translateY(-2px); box-shadow: 0 14px 28px rgba(20,140,255,0.42); }
+  .btn:active{ transform: translateY(0); filter: brightness(.95); }
+  .sub{
+    color:#cdeaff; opacity:.9; text-align:center; margin-top:8px; font-size:clamp(12px,2vw,16px);
+  }
+  @keyframes floatIn{
+    from{ opacity:0; transform: translateY(18px) scale(.98); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+ 
+  footer{ position:fixed; bottom:8px; left:0; right:0; text-align:center; font-size:12px; color:#97b8e0; opacity:.8; }
+  a, a:visited{ color:#97b8e0; }
+  
+/* Floating neon squares */
+.spark{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.spark span{
+  position: absolute;
+  top: 100vh;                     /* start below screen */
+  width: 36px; height: 36px;
+  border-radius: 0;
+  background: rgba(77,225,255,.14);
+  box-shadow:
+    0 0 22px rgba(77,225,255,.40),
+    inset 0 0 4px rgba(255,255,255,.25);
+  opacity: .5;
+  /* ONE animation that moves + spins (don’t stack two that both use transform) */
+  animation: moveSpin 18s linear infinite;
+}
+
+/* variety */
+.spark span:nth-child(2){ width:28px; height:28px; animation-duration:20s; }
+.spark span:nth-child(3){ width:44px; height:44px; animation-duration:22s; }
+.spark span:nth-child(4){ width:32px; height:32px; animation-duration:24s; }
+.spark span:nth-child(5){ width:26px; height:26px; animation-duration:26s; }
+
+@keyframes moveSpin{
+  from { transform: translateY(0) rotate(0deg); }
+  to   { transform: translateY(-120vh) rotate(360deg); }
+}
+
+/* keep main UI above */
+.card, .menu, .container, main { position: relative; z-index: 1; }
+
+
+
+</style>
+</head>
+<body>
+ <div class="spark">
+  <span style="left:8%;  animation-delay:-2s;"></span>
+  <span style="left:24%; animation-delay:-5s;"></span>
+  <span style="left:48%; animation-delay:-8s;"></span>
+  <span style="left:66%; animation-delay:-11s;"></span>
+  <span style="left:82%; animation-delay:-14s;"></span>
+  <span style="left:5%;  animation-delay:-2s;"></span>
+  <span style="left:12%; animation-delay:-8s;"></span>
+  <span style="left:25%; animation-delay:-14s;"></span>
+  <span style="left:37%; animation-delay:-5s;"></span>
+  <span style="left:46%; animation-delay:-11s;"></span>
+  <span style="left:53%; animation-delay:-3s;"></span>
+  <span style="left:65%; animation-delay:-17s;"></span>
+  <span style="left:72%; animation-delay:-7s;"></span>
+  <span style="left:81%; animation-delay:-13s;"></span>
+  <span style="left:92%; animation-delay:-19s;"></span>
+</div>
+
+  <main class="card" role="main" aria-labelledby="title">
+    <img class="logo" src="Square_Logo.png" alt="Block_logo" aria-hidden="false"/>
+    <div class="cta">
+      <a href="menu.html">
+        <button class="btn" aria-label="Enter EquaTetris">Enter</button>
+      </a>
+    </div>
+  </main>
+  <footer>
+    <span> Block² - Valérie Vivegnis </span> (<span id="yr"></span>)
+  </footer>
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>
