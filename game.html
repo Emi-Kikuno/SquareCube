@@ -575,6 +575,7 @@ const state = {
 
   sweptFor: new Set(),
   seenSweeps: new Set(),
+	maxSeenTile: 0,
 };
 
 ui.score.textContent = "0";
@@ -926,6 +927,7 @@ function applyFusions(board, fusions) {
 
       // 2) Normal triple merge
       board[rk][ck] = unlockOf(val * 3);   // ensure result is unlocked
+		state.maxSeenTile = Math.max(state.maxSeenTile, val * 3); 
       for (const { r, c } of f.consumed) board[r][c] = 0;
       points += (val * 3) * 2;             // your triple bonus
       continue;
@@ -1371,11 +1373,13 @@ function lockPiece() {
   for (const [r,c,v] of pieceCells(state.piece)) {
     if (!inBounds(r,c) || state.board[r][c]!==0) { gameOver(); return; }
     state.board[r][c] = v;
+    if (isNumberTile(v)) state.maxSeenTile = Math.max(state.maxSeenTile, cellVal(v)); // ← add
   }
   state.piece = null;
   resolveLandingSequence();
   if (state.running) spawnPiece();
 }
+
 function resolveLandingSequence() {
   state.combo = 0;
   let safety = 100;
@@ -1421,7 +1425,7 @@ const tripled = Math.min(val * 3, 19683);
 console.log("SPECIAL ×3 at", r, c, "tripling", val, "→", tripled);
           state.board[rr][cc] = unlockOf(tripled);
           state.board[r][c]   = 0;
-
+state.maxSeenTile = Math.max(state.maxSeenTile, tripled);
      points  += tripled;
           changed  = true;
 
@@ -2130,12 +2134,13 @@ function recordRunToLeaderboard() {
   const entry = {
     score: state.score,
     level: state.level,
-    maxTile: getMaxTileOnBoard(state.board)
+    maxTile: state.maxSeenTile        // ← change this line
   };
   rows.push(entry);
   rows.sort((a, b) => b.score - a.score);
-  writeLeaderboard(rows.slice(0, 50)); // keep top 50
+  writeLeaderboard(rows.slice(0, 50));
 }
+
 // Map UI
 ui.overlayLeaderboard = document.getElementById('overlayLeaderboard');
 
@@ -2336,6 +2341,7 @@ function init(resetScore = false) {
     state.level = 1;
     state.linesInLevel = 0;
     state.scoreAtLevelStart = 0;
+	    state.maxSeenTile = 0;  
   } else {
     if (typeof state.level !== "number") state.level = 1;
   }
@@ -2412,6 +2418,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </div>
 </body>
 </html>
+
 
 
 
